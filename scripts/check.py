@@ -185,6 +185,86 @@ for d in sorted(MANAGED.iterdir()):
         if not (d / req).is_file():
             err(f"missing: {rel(d)}/{req}")
 
+# --- 6. cross-tool (.cursor / .codex / .agents) artifacts -------------------
+# Additive compat layer for Cursor/Codex, ported alongside the Claude-native
+# plugins/ tree (see AGENTS.md). Checked here rather than in a separate
+# script so drift is caught by the same `python3 scripts/check.py` habit.
+CURSOR_AGENTS = ROOT / ".cursor" / "agents"
+CODEX_AGENTS = ROOT / ".codex" / "agents"
+
+for md in sorted(CURSOR_AGENTS.glob("*.md")) if CURSOR_AGENTS.is_dir() else []:
+    checked += 1
+    text = md.read_text()
+    if not text.startswith("---"):
+        err(f"frontmatter: {rel(md)}: missing leading ---")
+        continue
+    try:
+        _, fm, _ = text.split("---", 2)
+        meta = yaml.safe_load(fm) or {}
+        for k in ("name", "description"):
+            if k not in meta:
+                err(f"frontmatter: {rel(md)}: missing '{k}'")
+        if "tools" in meta:
+            err(f"frontmatter: {rel(md)}: 'tools' is Claude Code syntax, not valid for Cursor subagents")
+    except (ValueError, yaml.YAMLError) as e:
+        err(f"frontmatter: {rel(md)}: {e}")
+
+try:
+    import tomllib
+except ImportError:
+    tomllib = None
+
+if tomllib is None:
+    print("[check.py] WARN: no tomllib (needs Python 3.11+) — skipping .toml checks", file=sys.stderr)
+else:
+    for toml_f in sorted(CODEX_AGENTS.glob("*.toml")) if CODEX_AGENTS.is_dir() else []:
+        checked += 1
+        try:
+            with open(toml_f, "rb") as f:
+                data = tomllib.load(f)
+        except tomllib.TOMLDecodeError as e:
+            err(f"TOML parse: {rel(toml_f)}: {e}")
+            continue
+        for k in ("name", "description", "developer_instructions"):
+            if k not in data:
+                err(f"codex-agent: {rel(toml_f)}: missing '{k}'")
+
+    for toml_f in (ROOT / ".codex" / "config.toml",):
+        if toml_f.is_file():
+            checked += 1
+            try:
+                with open(toml_f, "rb") as f:
+                    tomllib.load(f)
+            except tomllib.TOMLDecodeError as e:
+                err(f"TOML parse: {rel(toml_f)}: {e}")
+
+for json_f in (ROOT / ".cursor" / "mcp.json",):
+    if json_f.is_file():
+        checked += 1
+        try:
+            json.loads(json_f.read_text())
+        except json.JSONDecodeError as e:
+            err(f"JSON parse: {rel(json_f)}: {e}")
+
+# Cross-tool skill copies must match the same agent-plugins bundle they were
+# synced from (scripts/sync-crosstool-skills.py is the fix-up command).
+for dest_root, label in ((ROOT / ".cursor" / "skills", ".cursor/skills"), (ROOT / ".agents" / "skills", ".agents/skills")):
+    if not dest_root.is_dir():
+        continue
+    for dest in sorted(dest_root.iterdir()):
+        if not dest.is_dir():
+            continue
+        src = src_by_name.get(dest.name)
+        if not src:
+            err(f"crosstool-skill: {label}/{dest.name}: no vertical-plugins source named '{dest.name}'")
+            continue
+        cmp = filecmp.dircmp(src, dest)
+        if cmp.diff_files or cmp.left_only or cmp.right_only:
+            err(
+                f"crosstool-skill: {label}/{dest.name}: drifted from {rel(src)} "
+                f"(run scripts/sync-crosstool-skills.py)"
+            )
+
 # --- report ----------------------------------------------------------------
 if errors:
     print(f"FAIL — {len(errors)} issue(s) across {checked} file(s):\n", file=sys.stderr)

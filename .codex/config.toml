@@ -1,0 +1,45 @@
+# Project-scoped Codex config (trusted projects only — see
+# https://developers.openai.com/codex/mcp). Mirrors .cursor/mcp.json; both are
+# generated from plugins/vertical-plugins/financial-analysis/.mcp.json, which
+# has a JSON syntax error upstream (missing comma/brace after "egnyte").
+# Fixed here rather than propagating the bug into a second file.
+#
+# All servers are third-party financial-data vendors. None are usable without
+# the corresponding paid entitlement/credentials — enable only what you have
+# access to (set `enabled = false` or delete unused entries).
+
+[mcp_servers.daloopa]
+url = "https://mcp.daloopa.com/server/mcp"
+
+[mcp_servers.morningstar]
+url = "https://mcp.morningstar.com/mcp"
+
+[mcp_servers.sp-global]
+url = "https://kfinance.kensho.com/integrations/mcp"
+
+[mcp_servers.factset]
+url = "https://mcp.factset.com/mcp"
+
+[mcp_servers.moodys]
+url = "https://api.moodys.com/genai-ready-data/m1/mcp"
+
+[mcp_servers.mtnewswire]
+url = "https://vast-mcp.blueskyapi.com/mtnewswires"
+
+[mcp_servers.aiera]
+url = "https://mcp-pub.aiera.com"
+
+[mcp_servers.lseg]
+url = "https://api.analytics.lseg.com/lfa/mcp"
+
+[mcp_servers.pitchbook]
+url = "https://premium.mcp.pitchbook.com/mcp"
+
+[mcp_servers.chronograph]
+url = "https://ai.chronograph.pe/mcp"
+
+[mcp_servers.egnyte]
+url = "https://mcp-server.egnyte.com/mcp"
+
+[mcp_servers.box]
+url = "https://mcp.box.com"
