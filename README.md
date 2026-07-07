@@ -1,5 +1,7 @@
 # Claude for Financial Services
 
+> Fork of [anthropics/financial-services](https://github.com/anthropics/financial-services) that adds a [Cursor / Codex compatibility layer](#cursor--codex-compatibility) so the same agents and skills run outside Claude too.
+
 Reference agents, skills, and data connectors for the financial-services workflows we see most — investment banking, equity research, private equity, and wealth management.
 
 Everything here is available **two ways from one source**: install it as a [Claude Cowork](https://claude.com/product/cowork) plugin, or deploy it through the [Claude Managed Agents API](https://docs.claude.com/en/api/managed-agents) behind your own workflow engine. Same system prompt, same skills — you choose where it runs.
@@ -11,6 +13,7 @@ What's in the repo:
 
 - **[Agents](#agents)** — named, end-to-end workflow agents (Pitch Agent, Market Researcher, GL Reconciler, …). Each ships as a Cowork plugin **and** as a [Claude Managed Agent template](./managed-agent-cookbooks) you deploy via `/v1/agents`.
 - **[Vertical plugins](#vertical-plugins)** — the underlying skills, slash commands, and data connectors, bundled by FSI vertical. Install these on their own if you just want `/comps`, `/dcf`, `/earnings` and the connectors without a full agent.
+- **[Cursor / Codex compatibility](#cursor--codex-compatibility)** — the same 10 agents and skills, ported to `.cursor/` and `.codex/` so they also run outside Claude.
 
 ## Agents
 
@@ -85,6 +88,28 @@ scripts/deploy-managed-agent.sh gl-reconciler
 Each template under [`managed-agent-cookbooks/`](./managed-agent-cookbooks) references the same system prompt and skills as its plugin counterpart. The deploy script resolves file references, uploads skills, creates leaf-worker subagents, and POSTs the orchestrator to `/v1/agents`. See [`scripts/orchestrate.py`](./scripts/orchestrate.py) for a reference event loop that routes `handoff_request` events between agents via your own orchestration layer.
 
 > **Research Preview:** subagent delegation (`callable_agents`) is a preview capability. See per-agent READMEs for security and handoff guidance.
+
+## Cursor / Codex Compatibility
+
+Everything above is authored for Claude. This fork adds an **additive, opt-in
+compatibility layer** so the same 10 agents and their skills also run in
+[Cursor](https://cursor.com) and [OpenAI Codex CLI](https://developers.openai.com/codex) —
+nothing under `plugins/`, `.claude-plugin/`, or `managed-agent-cookbooks/` is
+modified to do this; it's a second, parallel set of files:
+
+| | Claude | Cursor | Codex |
+|---|---|---|---|
+| Subagents | `plugins/agent-plugins/<slug>/agents/<slug>.md` | `.cursor/agents/<slug>.md` | `.codex/agents/<slug>.toml` |
+| Skills | `plugins/agent-plugins/<slug>/skills/*` | `.cursor/skills/*` | `.agents/skills/*` |
+| MCP connectors | `plugins/vertical-plugins/financial-analysis/.mcp.json` | `.cursor/mcp.json` | `.codex/config.toml` |
+
+To use it: open this repo in Cursor or run `codex` inside it — both tools
+auto-discover their respective `agents/` and `skills/` directories, no
+install step needed. See [`AGENTS.md`](./AGENTS.md) for exactly how each
+agent was translated (including which ones are read-only and why), the MCP
+naming differences (`mcp__capiq__*` → the `sp-global` server), and how to
+port a new agent if one is added upstream. `python3 scripts/check.py` lints
+this layer alongside the Claude-native one.
 
 ## How It Fits Together
 
@@ -253,7 +278,8 @@ Everything here is markdown and YAML. Fork, edit, PR. For new content:
 
 - New skill → add it under `plugins/vertical-plugins/<vertical>/skills/`, then run `python3 scripts/sync-agent-skills.py` to propagate to any agent that bundles it.
 - New agent → `plugins/agent-plugins/<slug>/` (with `agents/<slug>.md` + `skills/`) and a matching `managed-agent-cookbooks/<slug>/`.
-- Run `python3 scripts/check.py` before pushing — it lints every manifest, verifies all cross-file references resolve, and fails if any bundled skill has drifted from its vertical source.
+- Porting an agent to Cursor/Codex → see [`AGENTS.md`](./AGENTS.md), then run `python3 scripts/sync-crosstool-skills.py` to propagate its skills into `.cursor/skills/` and `.agents/skills/`.
+- Run `python3 scripts/check.py` before pushing — it lints every manifest (Claude-native and the Cursor/Codex layer), verifies all cross-file references resolve, and fails if any bundled skill has drifted from its vertical source.
 
 ## License
 
